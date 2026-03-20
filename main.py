@@ -10,6 +10,9 @@ class DatabaseManager:
         self.con.row_factory = sqlt.Row
         self.cursor = self.con.cursor()
 
+    def __del__(self):
+        self.con.close()
+
     def sql_query(self, query):
         """Make sql query to database. Return data (or True if it's not a GET request) on success, return exception otherwise"""
         try:
@@ -60,7 +63,6 @@ def api_main():
     if request.method == "GET":
         user_id = request_data["id"]
         user_info = db_manager.get_user(user_id)
-        print(user_info)
         return jsonify(user_info)
 
     if request.method == "POST":
