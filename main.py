@@ -35,8 +35,14 @@ class DatabaseManager:
             return users_found[0]
         return error_responce("No users found")
 
-    def add_user(self, name):
-        return self.sql_query(f"INSERT INTO users (name) VALUES ('{name}')")
+    def add_user(self, data):
+        params = params_for_insert_query(data)
+        return self.sql_query(f"INSERT INTO users {params}")
+
+    def update_user(self, data):
+        user_id = data.pop("id")
+        params = params_for_update_query(data)
+        return self.sql_query(f"UPDATE users SET {params} WHERE id={user_id}")
 
 
 def success_responce(msg=""):
@@ -46,6 +52,26 @@ def error_responce(error):
     """Generate error responce code"""
     return {"code": 500, "msg": error}
 
+
+def params_for_update_query(data):
+    """Generate parameters string for UPDATE SQL query as following: param1='str1', param2=num2"""
+    params = ""
+    for key, val in zip(data.keys(), data.values()):
+        if isinstance(val, int):
+            params += f"{key}={val}, "
+        else:
+            params += f"{key}='{val}', "
+    return params[:-2]
+
+def params_for_insert_query(data):
+    """Generate parameters string for INSERT SQL query as following: (param1, param2) VALUES ('str1', num2)"""
+    vals = []
+    for val in data.values():
+        if isinstance(val, int):
+            vals.append(str(val))
+        else:
+            vals.append(f"'{val}'")
+    return f"({", ".join(data.keys())}) VALUES ({", ".join(vals)})"
 
 @app.route('/')
 def home_page():
@@ -66,8 +92,13 @@ def api_main():
         return jsonify(user_info)
 
     if request.method == "POST":
-        user_name, = request_data.values()
-        query_status = db_manager.add_user(user_name)
+        query_status = db_manager.add_user(request_data)
+        if query_status:
+            return success_responce()
+        return error_responce(query_status)
+
+    if request.method == "PUT":
+        query_status = db_manager.update_user(request_data)
         if query_status:
             return success_responce()
         return error_responce(query_status)
