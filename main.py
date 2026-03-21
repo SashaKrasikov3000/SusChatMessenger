@@ -67,6 +67,9 @@ class DatabaseManager:
         params = params_for_update_query(data)
         return self.sql_query(f"UPDATE users SET {params} WHERE id={user_id}")
 
+    def delete_user(self, user_id) -> SqlResponse:
+        return self.sql_query(f"DELETE FROM users WHERE id={user_id}")
+
 
 def make_response(response):
     """Generate response code using ResponseCode values"""
@@ -111,6 +114,8 @@ def api_main():
         return make_response(ResponseCode.BadRequest)
 
     if request.method == "GET":
+        if "id" not in request_data:
+            return make_response(ResponseCode.BadRequest)
         user_id = request_data["id"]
         db_response = db_manager.get_user_by_id(user_id)
         if not db_response.success:
@@ -129,6 +134,22 @@ def api_main():
         if "id" not in request_data:
             return make_response(ResponseCode.BadRequest)
         db_response = db_manager.update_user(request_data)
+        if db_response.success:
+            return make_response(ResponseCode.OK)
+        return make_response(ResponseCode.SqlError)
+
+    if request.method == "DELETE":
+        if "id" not in request_data:
+            return make_response(ResponseCode.BadRequest)
+        user_id = request_data["id"]
+        # Checking if user exists
+        db_response = db_manager.get_user_by_id(user_id)
+        if not db_response.success:
+            return make_response(ResponseCode.SqlError)
+        if not db_response.data:
+            return make_response(ResponseCode.UserNotFound)
+
+        db_response = db_manager.delete_user(user_id)
         if db_response.success:
             return make_response(ResponseCode.OK)
         return make_response(ResponseCode.SqlError)
