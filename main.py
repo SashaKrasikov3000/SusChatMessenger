@@ -1,10 +1,26 @@
+import werkzeug.exceptions
 from flask import Flask, request, jsonify
 import sqlite3 as sqlt
 
 app = Flask("SusChat")
 
+class SqlResponse:
+    """DatabaseManager.sql_query() returns this"""
+    def __init__(self, success, data=None):
+        self.success = success
+        self.data = data
+
+class ResponseCode:
+    """Response code values for passing to make_response()"""
+    OK = {"code": 200, "msg": "OK"}
+    UserNotFound = {"code": 404, "msg": "User not found in database"}
+    BadRequest = {"code": 400, "msg": "Incorrect request form"}
+    SqlError = {"code": 500, "msg": "Error while processing SQL request"}
+    InternalError = {"code": 500, "msg": "Server error"}
+
+
 class DatabaseManager:
-    """Database manager object. Contains CRUD operation for users."""
+    """Database manager object. Contains common CRUD operation for database."""
     def __init__(self):
         self.con = sqlt.connect("database.db", check_same_thread=False)
         self.con.row_factory = sqlt.Row
@@ -13,44 +29,48 @@ class DatabaseManager:
     def __del__(self):
         self.con.close()
 
-    def sql_query(self, query):
-        """Make sql query to database. Return data (or True if it's not a GET request) on success, return exception otherwise"""
+    def sql_query(self, query, rows_num=None) -> SqlResponse:
+        """Make sql query to database. Return SqlResponse object"""
         try:
             self.cursor.execute(query)
             self.con.commit()
         except Exception as e:
-            return e
+            # TODO: add error logging
+            print("Sql Error: ", e)
+            return SqlResponse(False)
 
         if "SELECT" in query:
-            # Returning data as JSON
-            return [dict(i) for i in self.cursor.fetchall()]
-        return True
+            # Returning data as JSON depending on number of rows required
+            if rows_num == 1:
+                try:
+                    return SqlResponse(True, dict(self.cursor.fetchone()))
+                except TypeError:
+                    return SqlResponse(True, None)
+            elif rows_num > 1:
+                return SqlResponse(True, [dict(i) for i in self.cursor.fetchmany(rows_num)])
+            else:
+                return SqlResponse(True, [dict(i) for i in self.cursor.fetchall()])
+        return SqlResponse(True)
 
-    def get_all_users(self):
+    def get_all_users(self) -> SqlResponse:
         return self.sql_query("SELECT * FROM users")
 
-    def get_user(self, user_id):
-        users_found = self.sql_query(f"SELECT * FROM users WHERE id={user_id}")
-        if users_found:
-            return users_found[0]
-        return error_responce("No users found")
+    def get_user_by_id(self, user_id) -> SqlResponse:
+        return self.sql_query(f"SELECT * FROM users WHERE id={user_id}", rows_num=1)
 
-    def add_user(self, data):
+    def add_user(self, data) -> SqlResponse:
         params = params_for_insert_query(data)
         return self.sql_query(f"INSERT INTO users {params}")
 
-    def update_user(self, data):
+    def update_user(self, data) -> SqlResponse:
         user_id = data.pop("id")
         params = params_for_update_query(data)
         return self.sql_query(f"UPDATE users SET {params} WHERE id={user_id}")
 
 
-def success_responce(msg=""):
-    """Generate success reponce code"""
-    return {"code": 200, "msg": msg}
-def error_responce(error):
-    """Generate error responce code"""
-    return {"code": 500, "msg": error}
+def make_response(response):
+    """Generate response code using ResponseCode values"""
+    return {"code": response["code"], "msg": response["msg"]}
 
 
 def params_for_update_query(data):
@@ -71,7 +91,7 @@ def params_for_insert_query(data):
             vals.append(str(val))
         else:
             vals.append(f"'{val}'")
-    return f"({", ".join(data.keys())}) VALUES ({", ".join(vals)})"
+    return f"({', '.join(data.keys())}) VALUES ({', '.join(vals)})"
 
 @app.route('/')
 def home_page():
@@ -84,24 +104,34 @@ def home_page():
 # User managing: GET = get user data, POST = add new user, PUT = update user info, DELETE = delete user
 @app.route("/api/user", methods=['GET', 'POST', 'PUT', 'DELETE'])
 def api_main():
-    request_data = request.get_json()
+    # Handling JSON errors
+    try:
+        request_data = request.get_json()
+    except werkzeug.exceptions.BadRequest:
+        return make_response(ResponseCode.BadRequest)
 
     if request.method == "GET":
         user_id = request_data["id"]
-        user_info = db_manager.get_user(user_id)
-        return jsonify(user_info)
+        db_response = db_manager.get_user_by_id(user_id)
+        if not db_response.success:
+            return make_response(ResponseCode.SqlError)
+        if not db_response.data:
+            return make_response(ResponseCode.UserNotFound)
+        return jsonify(db_response.data)
 
     if request.method == "POST":
-        query_status = db_manager.add_user(request_data)
-        if query_status:
-            return success_responce()
-        return error_responce(query_status)
+        db_response = db_manager.add_user(request_data)
+        if db_response.success:
+            return make_response(ResponseCode.OK)
+        return make_response(ResponseCode.SqlError)
 
     if request.method == "PUT":
-        query_status = db_manager.update_user(request_data)
-        if query_status:
-            return success_responce()
-        return error_responce(query_status)
+        if "id" not in request_data:
+            return make_response(ResponseCode.BadRequest)
+        db_response = db_manager.update_user(request_data)
+        if db_response.success:
+            return make_response(ResponseCode.OK)
+        return make_response(ResponseCode.SqlError)
 
 
 db_manager = DatabaseManager()  # singleton db manager object
