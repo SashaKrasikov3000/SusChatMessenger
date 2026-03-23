@@ -12,11 +12,11 @@ SusChat uses `REST API`, which offers 4 request types (which are associated with
 * `DELETE` - Deletes data from database. Usually uses SQL **DELETE** query.
 
 ### Operating with users
-Examples of CRUD requests for operating with user table.
-* `GET` request - takes target user's ID. Returns [JSON data](#get-response-example) or [error response](#error-response-example)
+Examples of CRUD requests for operating with `users` table.
+* `GET` request - takes target `user_id`. Returns [JSON data](#get-response-example) or [error response](#error-response-example)
 ```
 {
-  "id": 17
+  "user_id": 17
 }
 ```
 * `POST` request - takes all data about new user. Returns [successful response](#successful-response-example) or [error response](#error-response-example)
@@ -26,43 +26,104 @@ Examples of CRUD requests for operating with user table.
   "password": "password"
 }
 ```
-* `PUT` request - takes target user's ID and data to modify. Returns [successful response](#successful-response-example) or [error response](#error-response-example)
+* `PUT` request - takes target `user_id` and data to modify. Returns [successful response](#successful-response-example) or [error response](#error-response-example)
 ```
 {
-  "id": 17,
+  "user_id": 17,
   "name": "NewName",
   "password": "NewPass"
 }
 ```
-* `DELETE` request - takes target user's ID. Returns [successful response](#successful-response-example) or [error response](#error-response-example). Throws error if target user doesn't exist.
+* `DELETE` request - takes target `user_id`. Returns [successful response](#successful-response-example) or [error response](#error-response-example). Throws error if target user doesn't exist.
 ```
 {
-  "id": 17
+  "user_id": 17
 }
 ```
 
-### Response codes
+### Operating with messages
+Examples of CRUD requests for operating with `messages` table.
+* `GET` request - returns last `max_messages` messages from specified chat. Returns [JSON data](#get-user-response-example) or [error response](#error-response-example)
+```
+{
+  "user_id": 17
+  "chat_id": 2,
+  "max_messages": 200
+}
+```
+* `POST` request - takes target chat_id, id of user who sent it and content. Returns [successful response](#successful-response-example) or [error response](#error-response-example)
+```
+{
+  "chat_id": 1,
+  "from_id": 17,
+  "content": "Test message"
+}
+```
+* `PUT` request - takes id of target message and its new data. Returns [successful response](#successful-response-example) or [error response](#error-response-example)
+```
+{
+  "msg_id": 4,
+  "content": "Updated text"
+}
+```
+* `DELETE` request - takes target msg_id. Returns [successful response](#successful-response-example) or [error response](#error-response-example). Throws error if target user doesn't exist.
+```
+{
+  "msg_id": 17
+}
+```
+
+## Response codes
 SusChat API uses common [HTTP response codes](https://en.wikipedia.org/wiki/List_of_HTTP_status_codes)
 Response examples:
 <a name="successful-response-example"></a>
-* Successful request
+* Successful response
 ```
 {
   "code": 200,
   "msg": "OK"
 }
 ```
-<a name="get-response-example"></a>
-* `GET` request
+<a name="get-user-response-example"></a>
+* `GET` user response
 ```
 {
-  "id": 1,
+  "user_id": 1,
   "name": "User",
   "password": "pass"
 }
 ```
+<a name="get-messages-response-example"></a>
+* `GET` messages response
+```
+{
+  [
+  {
+    "chat_id": 1,
+    "content": "Message",
+    "datetime": "2026-03-22 11:56:21",
+    "from_id": 1,
+    "msg_id": 1
+  },
+  {
+    "chat_id": 1,
+    "content": "Another message",
+    "datetime": "2026-03-22 15:02:50",
+    "from_id": 1,
+    "msg_id": 2
+  },
+  {
+    "chat_id": 1,
+    "content": "Text",
+    "datetime": "2026-03-23 18:25:20",
+    "from_id": 1,
+    "msg_id": 3
+  }
+]
+}
+```
 <a name="error-response-example"></a>
-* Invalid request
+* Error response
 ```
 {
   "code": 400,
