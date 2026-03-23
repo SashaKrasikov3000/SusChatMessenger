@@ -4,6 +4,19 @@
 SusChat messenger is a lightweight REST API based messenger server app written in Python, which allows you to send and receive messages from other users. It's still under development.
 > [!CAUTION]
 > This app is just my pet project and is not aimed for serious usage. Use it on your own risk.
+
+### Upcoming updates:
+- [x] Add API for managing users
+- [x] Add API for managing messages
+- [ ] Make authentication using session data in database
+- [ ] Add new fields to users:
+- - [ ] Bio
+- - [ ] Profile picture
+- - [ ] Various settings
+- [ ] Add new fields to messages:
+- - [ ] Modified or not
+- - [ ] Link to attached file
+
 ## How to use
 SusChat uses `REST API`, which offers 4 request types (which are associated with **CRUD** operations):
 * `GET` - Returns data in JSON format. Usually uses SQL **SELECT** query. 
