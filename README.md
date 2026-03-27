@@ -8,7 +8,7 @@ SusChat messenger is a lightweight REST API based messenger server app written i
 ### Upcoming updates:
 - [x] Add API for managing users
 - [x] Add API for managing messages
-- [ ] Make authentication using session data in database
+- [x] Make authentication using session data in database
 - [ ] Add new fields to users:
 - - [ ] Bio
 - - [ ] Profile picture
@@ -24,64 +24,78 @@ SusChat uses `REST API`, which offers 4 request types (which are associated with
 * `PUT` - Updates data in database. Usually uses SQL **UPDATE** query.
 * `DELETE` - Deletes data from database. Usually uses SQL **DELETE** query.
 
-### Operating with users
-Examples of CRUD requests for operating with `users` table.
-* `GET` request - takes target `user_id`. Returns [JSON data](#get-response-example) or [error response](#error-response-example)
+### User authentication
+API endpoint - `/api/login`  
+`GET` request - returns `session_id` of new session for this user.
 ```
 {
-  "user_id": 17
+  "user_id": 17,
+  "password": "amogus"
 }
 ```
-* `POST` request - takes all data about new user. Returns [successful response](#successful-response-example) or [error response](#error-response-example)
+
+### Operating with users
+API endpoint - `/api/user`  
+Examples of CRUD requests for operating with `users` table.
+* `GET` request - takes target `user_id` to get any user's public data or `session_id` to get all current user's data. Returns [JSON data](#get-response-example) or [error response](#error-response-example)
+```
+{
+  "session_id": "cIeDxNiPGBCZ0Km0eP0W"
+}
+```
+* `POST` request - create new user with given data. Returns [successful response](#successful-response-example) or [error response](#error-response-example)
 ```
 {
   "name": "Sus",
   "password": "password"
 }
 ```
-* `PUT` request - takes target `user_id` and data to modify. Returns [successful response](#successful-response-example) or [error response](#error-response-example)
+* `PUT` request - change user data. Returns [successful response](#successful-response-example) or [error response](#error-response-example)
 ```
 {
-  "user_id": 17,
+  "session_id": "cIeDxNiPGBCZ0Km0eP0W",
   "name": "NewName",
   "password": "NewPass"
 }
 ```
-* `DELETE` request - takes target `user_id`. Returns [successful response](#successful-response-example) or [error response](#error-response-example). Throws error if target user doesn't exist.
+* `DELETE` request - delete user and their sessions from database. Returns [successful response](#successful-response-example) or [error response](#error-response-example). Throws error if target user doesn't exist.
 ```
 {
-  "user_id": 17
+  "session_id": "cIeDxNiPGBCZ0Km0eP0W"
 }
 ```
 
 ### Operating with messages
+API endpoint - `/api/msg`
 Examples of CRUD requests for operating with `messages` table.
 * `GET` request - returns last `max_messages` messages from specified chat. Returns [JSON data](#get-user-response-example) or [error response](#error-response-example)
 ```
 {
-  "user_id": 17
+  "session_id": "cIeDxNiPGBCZ0Km0eP0W"
   "chat_id": 2,
   "max_messages": 200
 }
 ```
-* `POST` request - takes target chat_id, id of user who sent it and content. Returns [successful response](#successful-response-example) or [error response](#error-response-example)
+* `POST` request - send message with given content to given chat. Returns [successful response](#successful-response-example) or [error response](#error-response-example)
 ```
 {
+  "session_id": "cIeDxNiPGBCZ0Km0eP0W"
   "chat_id": 1,
-  "from_id": 17,
   "content": "Test message"
 }
 ```
-* `PUT` request - takes id of target message and its new data. Returns [successful response](#successful-response-example) or [error response](#error-response-example)
+* `PUT` request - change message data. Returns [successful response](#successful-response-example) or [error response](#error-response-example)
 ```
 {
+  "session_id": "cIeDxNiPGBCZ0Km0eP0W",
   "msg_id": 4,
   "content": "Updated text"
 }
 ```
-* `DELETE` request - takes target msg_id. Returns [successful response](#successful-response-example) or [error response](#error-response-example). Throws error if target user doesn't exist.
+* `DELETE` request - delete message. Returns [successful response](#successful-response-example) or [error response](#error-response-example). Throws error if target user doesn't exist.
 ```
 {
+  "session_id": "cIeDxNiPGBCZ0Km0eP0W",
   "msg_id": 17
 }
 ```
@@ -132,7 +146,7 @@ Response examples:
     "from_id": 1,
     "msg_id": 3
   }
-]
+  ]
 }
 ```
 <a name="error-response-example"></a>
