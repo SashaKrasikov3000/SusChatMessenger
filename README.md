@@ -9,6 +9,7 @@ SusChat messenger is a lightweight REST API based messenger server app written i
 - [x] Add API for managing users
 - [x] Add API for managing messages
 - [x] Make authentication using session data in database
+- [ ] Add ability to create new chats
 - [ ] Add new fields to users:
 - - [ ] Bio
 - - [ ] Profile picture
@@ -29,7 +30,7 @@ API endpoint - `/api/login`
 `GET` request - returns `session_id` of new session for this user.
 ```
 {
-  "user_id": 17,
+  "user_id": "USER_ID",
   "password": "amogus"
 }
 ```
@@ -43,7 +44,7 @@ Examples of CRUD requests for operating with `users` table.
   "session_id": "cIeDxNiPGBCZ0Km0eP0W"
 }
 ```
-* `POST` request - create new user with given data. Returns [successful response](#successful-response-example) or [error response](#error-response-example)
+* `POST` request - create new user with given data. Returns `user_id` of created user or [error response](#error-response-example)
 ```
 {
   "name": "Sus",
@@ -72,7 +73,7 @@ Examples of CRUD requests for operating with `messages` table.
 ```
 {
   "session_id": "cIeDxNiPGBCZ0Km0eP0W"
-  "chat_id": 2,
+  "chat_id": "CHAT_ID",
   "max_messages": 200
 }
 ```
@@ -80,7 +81,7 @@ Examples of CRUD requests for operating with `messages` table.
 ```
 {
   "session_id": "cIeDxNiPGBCZ0Km0eP0W"
-  "chat_id": 1,
+  "chat_id": "CHAT_ID",
   "content": "Test message"
 }
 ```
@@ -100,6 +101,59 @@ Examples of CRUD requests for operating with `messages` table.
 }
 ```
 
+### Operating with chats
+API endpoint - `/api/chat`
+Examples of CRUD requests for operating with `chats` table.
+* `GET` request - get chat data. Returns [JSON data](#get-user-response-example) or [error response](#error-response-example)
+```
+{
+  "session_id": "cIeDxNiPGBCZ0Km0eP0W"
+  "chat_id": "CHAT_ID"
+}
+```
+* `POST` request - create a chat with given `name` and `description`. Adds user who created chat by default. Returns [successful response](#successful-response-example) or [error response](#error-response-example)
+```
+{
+  "session_id": "cIeDxNiPGBCZ0Km0eP0W"
+  "name": "Sample chat",
+  "description": "Test chat"
+}
+```
+* `PUT` request - change chat data. Returns [successful response](#successful-response-example) or [error response](#error-response-example)
+```
+{
+  "session_id": "cIeDxNiPGBCZ0Km0eP0W",
+  "chat_id": "CHAT_ID"
+  "name": "New chat name",
+  "description": "New description"
+}
+```
+* `DELETE` request - delete chat. Returns [successful response](#successful-response-example) or [error response](#error-response-example). Throws error if target user doesn't exist.
+```
+{
+  "session_id": "cIeDxNiPGBCZ0Km0eP0W",
+  "chat_id": "CHAT_ID"
+}
+```
+
+### Adding and deleting users from chat
+API endpoint - `/api/user-chat`
+* `POST` request - add user to chat. Returns [successful response](#successful-response-example) or [error response](#error-response-example)
+```
+{
+  "session_id": "cIeDxNiPGBCZ0Km0eP0W"
+  "user_id": "USER_ID",
+  "chat_id": "CHAT_ID"
+}
+```
+* `DELETE` request - delete user from chat. Returns [successful response](#successful-response-example) or [error response](#error-response-example). Throws error if target user doesn't exist.
+```
+{
+  "session_id": "cIeDxNiPGBCZ0Km0eP0W",
+  "chat_id": "CHAT_ID"
+}
+```
+
 ## Response codes
 SusChat API uses common [HTTP response codes](https://en.wikipedia.org/wiki/List_of_HTTP_status_codes)
 Response examples:
@@ -115,7 +169,7 @@ Response examples:
 * `GET` user response
 ```
 {
-  "user_id": 1,
+  "user_id": "H53gIso",
   "name": "User",
   "password": "pass"
 }
@@ -126,24 +180,24 @@ Response examples:
 {
   [
   {
-    "chat_id": 1,
+    "chat_id": "Pkw57abc",
     "content": "Message",
     "datetime": "2026-03-22 11:56:21",
-    "from_id": 1,
+    "from_id": "H53gIso",
     "msg_id": 1
   },
   {
-    "chat_id": 1,
+    "chat_id": "Pkw57abc",
     "content": "Another message",
     "datetime": "2026-03-22 15:02:50",
-    "from_id": 1,
+    "from_id": "H53gIso",
     "msg_id": 2
   },
   {
-    "chat_id": 1,
+    "chat_id": "Pkw57abc",
     "content": "Text",
     "datetime": "2026-03-23 18:25:20",
-    "from_id": 1,
+    "from_id": "H53gIso",
     "msg_id": 3
   }
   ]
