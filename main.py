@@ -184,6 +184,7 @@ def generate_random_string(length=20):
 
 def check_auth(request_data):
     """Check user auth (session_id). Return error or user_id"""
+    db_manager = DatabaseManager()
     # Checking user auth
     if not request_has_fields(request_data, ["session_id"]):
         return make_response(ResponseCode.BadRequest)
@@ -231,6 +232,7 @@ def api_login():
         request_data = request.get_json()
     except werkzeug.exceptions.BadRequest:
         return make_response(ResponseCode.BadRequest)
+    db_manager = DatabaseManager()
 
     if not request_has_fields(request_data, ["user_id", "password"]):
         return make_response(ResponseCode.BadRequest)
@@ -262,6 +264,7 @@ def add_user_to_chat():
         request_data = request.get_json()
     except werkzeug.exceptions.BadRequest:
         return make_response(ResponseCode.BadRequest)
+    db_manager = DatabaseManager()
 
     # Check user auth, get user_id
     auth_resp = check_auth(request_data)
@@ -321,6 +324,7 @@ def api_users():
         request_data = request.get_json()
     except werkzeug.exceptions.BadRequest:
         return make_response(ResponseCode.BadRequest)
+    db_manager = DatabaseManager()
 
     # Creating user doesn't require auth
     if request.method == "POST":
@@ -402,6 +406,7 @@ def api_messages():
         request_data = request.get_json()
     except werkzeug.exceptions.BadRequest:
         return make_response(ResponseCode.BadRequest)
+    db_manager = DatabaseManager()
 
     # Check user auth, get user_id
     auth_resp = check_auth(request_data)
@@ -467,6 +472,7 @@ def api_chats():
         request_data = request.get_json()
     except werkzeug.exceptions.BadRequest:
         return make_response(ResponseCode.BadRequest)
+    db_manager = DatabaseManager()
 
     # Check user auth, get user_id
     auth_resp = check_auth(request_data)
@@ -531,5 +537,5 @@ def api_chats():
         return make_response(ResponseCode.SqlError)
 
 
-db_manager = DatabaseManager()  # singleton db manager object
-app.run(debug=True, host="192.168.0.70")
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=8080)

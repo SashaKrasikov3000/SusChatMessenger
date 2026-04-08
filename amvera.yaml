@@ -1,0 +1,14 @@
+---
+meta:
+  environment: python
+  toolchain:
+    name: pip
+    version: latest
+build:
+  requirementsPath: requirements.txt
+  useCache: true
+run:
+  persistenceMount: /data
+  command: gunicorn --bind 0.0.0.0:8080 main:app
+  containerPort: 8080
+  servicePort: 80
