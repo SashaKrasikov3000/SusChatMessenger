@@ -28,7 +28,7 @@ class ResponseCode:
 class DatabaseManager:
     """Database manager object. Contains common CRUD operations for database."""
     def __init__(self):
-        self.con = sqlt.connect("database.db", check_same_thread=False)
+        self.con = sqlt.connect("/data/database.db", check_same_thread=False)
         self.con.row_factory = sqlt.Row
         self.cursor = self.con.cursor()
 
