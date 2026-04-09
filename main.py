@@ -81,7 +81,7 @@ class DatabaseManager:
 
     def get_user_public_data(self, user_id) -> SqlResponse:
         """Get only public user data"""
-        return self.sql_query(f"SELECT name, last_seen FROM users WHERE user_id='{user_id}'", rows_num=1)
+        return self.sql_query(f"SELECT user_id, name, last_seen FROM users WHERE user_id='{user_id}'", rows_num=1)
 
     def create_user(self, user_id, name, password) -> SqlResponse:
         """Add user to database"""

@@ -1,5 +1,5 @@
 /.venv
 test.py
-database.db
+data/database.db
 .idea
 .DS_Store
