@@ -1,10 +1,13 @@
+import os
 import random
 import string
 import werkzeug.exceptions
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 import sqlite3 as sqlt
 
 app = Flask("SusChat")
+
+data_path = "/data/" if "AMVERA" in os.environ else "data/"
 
 class SqlResponse:
     """DatabaseManager.sql_query() returns this"""
@@ -28,7 +31,8 @@ class ResponseCode:
 class DatabaseManager:
     """Database manager object. Contains common CRUD operations for database."""
     def __init__(self):
-        self.con = sqlt.connect("/data/database.db", check_same_thread=False)
+        database_path = data_path + "database.db"
+        self.con = sqlt.connect(database_path, check_same_thread=False)
         self.con.row_factory = sqlt.Row
         self.cursor = self.con.cursor()
 
@@ -222,8 +226,16 @@ def params_for_insert_query(data):
 def home_page():
     return "<h1>Home page</h1>"
 
+@app.route('/download/android')
+def download_android():
+    return send_file(data_path + "SusChat.apk", as_attachment=True)
+
 
 # Api entry point, RESTful architecture
+
+@app.route('/api/version', methods=['GET'])
+def api_version():
+    return jsonify({"version": os.environ["APP_VERSION"]})
 
 @app.route("/api/login", methods=['GET'])
 def api_login():
