@@ -235,7 +235,7 @@ def download_android():
 
 @app.route('/api/version', methods=['GET'])
 def api_version():
-    return jsonify({"version": os.environ["APP_VERSION"]})
+    return jsonify({"version": os.environ["APP_VERSION"], "description": os.environ["UPDATE_DESCRIPTION"]})
 
 @app.route("/api/login", methods=['GET'])
 def api_login():
