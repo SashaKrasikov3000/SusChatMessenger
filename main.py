@@ -8,6 +8,7 @@ import sqlite3 as sqlt
 app = Flask("SusChat")
 
 data_path = "/data/" if "AMVERA" in os.environ else "data/"
+port = 8080 if "AMVERA" in os.environ else 5000
 
 class SqlResponse:
     """DatabaseManager.sql_query() returns this"""
@@ -27,6 +28,42 @@ class ResponseCode:
     SqlError = {"code": 500, "msg": "Error while processing SQL request"}
     InternalError = {"code": 500, "msg": "Server error"}
 
+class Request:
+    """Request data object"""
+    request_data = {}
+
+    def __init__(self, request: Flask.request_class):
+        self.request_data = request.get_json()
+
+    def __getitem__(self, item):
+        return self.request_data[item]
+
+    def has_fields(self, fields: list[str]):
+        """Check if request data has all necessary fields"""
+        for field in fields:
+            if field not in self.request_data:
+                return False
+        return True
+
+    def has_field(self, field: str):
+        """Check if request data has given field"""
+        return field in self.request_data
+
+    def is_auth(self) -> bool:
+        """Check user auth (session_id)"""
+        db_manager = DatabaseManager()
+        # Checking user auth
+        if "session_id" not in self.request_data:
+            return False
+        session_id = self.request_data["session_id"]
+        db_response = db_manager.check_user_session(session_id)
+        if not db_response.success or not db_response.data:
+            return False
+        # Adding user_id to request data
+        if "user_id" not in self.request_data:
+            user_id = db_response.data["user_id"]
+            self.request_data["user_id"] = user_id
+        return True
 
 class DatabaseManager:
     """Database manager object. Contains common CRUD operations for database."""
@@ -170,36 +207,11 @@ def make_response(response):
     """Generate response code using ResponseCode values"""
     return jsonify({"code": response["code"], "msg": response["msg"]})
 
-def request_has_fields(request_data: dict, fields: list[str]):
-    """Check if request data has all necessary fields"""
-    for field in fields:
-        if field not in request_data:
-            return False
-    return True
-def request_only_has_fields(request_data: dict, fields: list[str]):
-    """Check if request data has ONLY specified fields"""
-    return list(request_data.keys()) == fields
-
 def generate_random_string(length=20):
     """Generating random sequence of letters and digits"""
     alph = string.ascii_letters + string.digits
     result = "".join([random.choice(alph) for _ in range(length)])
     return result
-
-def check_auth(request_data):
-    """Check user auth (session_id). Return error or user_id"""
-    db_manager = DatabaseManager()
-    # Checking user auth
-    if not request_has_fields(request_data, ["session_id"]):
-        return make_response(ResponseCode.BadRequest)
-    session_id = request_data["session_id"]
-    db_response = db_manager.check_user_session(session_id)
-    if not db_response.success:
-        return make_response(ResponseCode.SqlError)
-    if not db_response.data:
-        return make_response(ResponseCode.UserUnauthorized)
-    user_id = db_response.data["user_id"]
-    return user_id
 
 
 def params_for_update_query(data):
@@ -231,7 +243,6 @@ def download_android():
     return send_file(data_path + "SusChat.apk", as_attachment=True)
 
 
-# Api entry point, RESTful architecture
 
 @app.route('/api/version', methods=['GET'])
 def api_version():
@@ -241,17 +252,17 @@ def api_version():
 def api_login():
     # Handling JSON errors
     try:
-        request_data = request.get_json()
+        request_data = Request(request)
     except werkzeug.exceptions.BadRequest:
         return make_response(ResponseCode.BadRequest)
     db_manager = DatabaseManager()
 
-    if not request_has_fields(request_data, ["user_id", "password"]):
+    if not request_data.has_fields(["user_id", "password"]):
         return make_response(ResponseCode.BadRequest)
     user_id = request_data["user_id"]
     password = request_data["password"]
 
-    # check if password is correct
+    # Check if password is correct
     db_response = db_manager.get_user_data(user_id)
     if not db_response.success:
         return make_response(ResponseCode.SqlError)
@@ -273,19 +284,17 @@ def add_user_to_chat():
     print(request.data)
     # Handling JSON errors
     try:
-        request_data = request.get_json()
+        request_data = Request(request)
     except werkzeug.exceptions.BadRequest:
         return make_response(ResponseCode.BadRequest)
     db_manager = DatabaseManager()
 
     # Check user auth, get user_id
-    auth_resp = check_auth(request_data)
-    if isinstance(auth_resp, str):
-        user_id = auth_resp
-    else:
-        return auth_resp
+    if not request_data.is_auth():
+        return make_response(ResponseCode.UserUnauthorized)
+    user_id = request_data["user_id"]
 
-    if not request_has_fields(request_data, ["chat_id"]):
+    if not request_data.has_field("chat_id"):
         return make_response(ResponseCode.BadRequest)
     chat_id = request_data["chat_id"]
 
@@ -333,14 +342,14 @@ def api_users():
     print(request.data)
     # Handling JSON errors
     try:
-        request_data = request.get_json()
+        request_data = Request(request)
     except werkzeug.exceptions.BadRequest:
         return make_response(ResponseCode.BadRequest)
     db_manager = DatabaseManager()
 
     # Creating user doesn't require auth
     if request.method == "POST":
-        if not request_has_fields(request_data, ["name", "password"]):
+        if not request_data.has_fields(["name", "password"]):
             return make_response(ResponseCode.BadRequest)
         user_name = request_data["name"]
         password = request_data["password"]
@@ -352,7 +361,7 @@ def api_users():
 
     # Getting another user's public data by ID doesn't require auth as well
     if request.method == "GET":
-        if request_has_fields(request_data, ["user_id"]):
+        if request_data.has_field("user_id"):
             user_id = request_data["user_id"]
             db_response = db_manager.get_user_public_data(user_id)
             if not db_response.success:
@@ -362,11 +371,9 @@ def api_users():
             return jsonify(db_response.data)
 
     # Check user auth, get user_id
-    auth_resp = check_auth(request_data)
-    if isinstance(auth_resp, str):
-        user_id = auth_resp
-    else:
-        return auth_resp
+    if not request_data.is_auth():
+        return make_response(ResponseCode.UserUnauthorized)
+    user_id = request_data["user_id"]
 
     # If session provided, getting current user data
     if request.method == "GET":
@@ -378,7 +385,7 @@ def api_users():
         return jsonify(db_response.data)
 
     if request.method == "PUT":
-        if not request_has_fields(request_data, ["name", "password"]):
+        if not request_data.has_fields(["name", "password"]):
             return make_response(ResponseCode.BadRequest)
         user_name = request_data["name"]
         password = request_data["password"]
@@ -415,20 +422,18 @@ def api_messages():
     print(request.data)
     # Handling JSON errors
     try:
-        request_data = request.get_json()
+        request_data = Request(request)
     except werkzeug.exceptions.BadRequest:
         return make_response(ResponseCode.BadRequest)
     db_manager = DatabaseManager()
 
     # Check user auth, get user_id
-    auth_resp = check_auth(request_data)
-    if isinstance(auth_resp, str):
-        user_id = auth_resp
-    else:
-        return auth_resp
+    if not request_data.is_auth():
+        return make_response(ResponseCode.UserUnauthorized)
+    user_id = request_data["user_id"]
 
     if request.method == "GET":
-        if not request_has_fields(request_data, ["chat_id", "max_messages"]):
+        if not request_data.has_fields(["chat_id", "max_messages"]):
             return make_response(ResponseCode.BadRequest)
         chat_id = request_data["chat_id"]
         max_messages = request_data["max_messages"]
@@ -440,7 +445,7 @@ def api_messages():
         return jsonify(db_response.data)
 
     if request.method == "POST":
-        if not request_has_fields(request_data, ["chat_id", "content"]):
+        if not request_data.has_fields(["chat_id", "content"]):
             return make_response(ResponseCode.BadRequest)
         chat_id = request_data["chat_id"]
         msg_content = request_data["content"]
@@ -450,7 +455,7 @@ def api_messages():
         return make_response(ResponseCode.SqlError)
 
     if request.method == "PUT":
-        if not request_has_fields(request_data, ["msg_id", "content"]):
+        if not request_data.has_fields(["msg_id", "content"]):
             return make_response(ResponseCode.BadRequest)
         msg_id = request_data["msg_id"]
         msg_content = request_data["content"]
@@ -460,7 +465,7 @@ def api_messages():
         return make_response(ResponseCode.SqlError)
 
     if request.method == "DELETE":
-        if not request_has_fields(request_data, ["msg_id"]):
+        if not request_data.has_field("msg_id"):
             return make_response(ResponseCode.BadRequest)
         msg_id = request_data["msg_id"]
         # Checking if message exists
@@ -481,20 +486,18 @@ def api_chats():
     print(request.data)
     # Handling JSON errors
     try:
-        request_data = request.get_json()
+        request_data = Request(request)
     except werkzeug.exceptions.BadRequest:
         return make_response(ResponseCode.BadRequest)
     db_manager = DatabaseManager()
 
     # Check user auth, get user_id
-    auth_resp = check_auth(request_data)
-    if isinstance(auth_resp, str):
-        user_id = auth_resp
-    else:
-        return auth_resp
+    if not request_data.is_auth():
+        return make_response(ResponseCode.UserUnauthorized)
+    user_id = request_data["user_id"]
 
     if request.method == "GET":
-        if not request_has_fields(request_data, ["chat_id"]):
+        if not request_data.has_field("chat_id"):
             return make_response(ResponseCode.BadRequest)
         chat_id = request_data["chat_id"]
         db_response = db_manager.get_chat_data(chat_id)
@@ -505,7 +508,7 @@ def api_chats():
         return jsonify(db_response.data)
 
     if request.method == "POST":
-        if not request_has_fields(request_data, ["name", "description"]):
+        if not request_data.has_fields(["name", "description"]):
             return make_response(ResponseCode.BadRequest)
         chat_name = request_data["name"]
         chat_description = request_data["description"]
@@ -520,7 +523,7 @@ def api_chats():
         return make_response(ResponseCode.SqlError)
 
     if request.method == "PUT":
-        if not request_has_fields(request_data, ["chat_id", "name", "description"]):
+        if not request_data.has_fields(["chat_id", "name", "description"]):
             return make_response(ResponseCode.BadRequest)
         chat_id = request_data["chat_id"]
         chat_name = request_data["name"]
@@ -531,7 +534,7 @@ def api_chats():
         return make_response(ResponseCode.SqlError)
 
     if request.method == "DELETE":
-        if not request_has_fields(request_data, ["chat_id"]):
+        if not request_data.has_field("chat_id"):
             return make_response(ResponseCode.BadRequest)
         chat_id = request_data["chat_id"]
         # Checking if chat exists
@@ -550,4 +553,4 @@ def api_chats():
 
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=8080)
+    app.run(host="0.0.0.0", port=port)
