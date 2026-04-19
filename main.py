@@ -126,7 +126,7 @@ class DatabaseManager:
 
     def create_user(self, user_id, name, password) -> SqlResponse:
         """Add user to database"""
-        return self.sql_query(f"INSERT INTO users (user_id, name, password, chat_list) VALUES ('{user_id}', '{name}', '{password}', '')")
+        return self.sql_query(f"INSERT INTO users (user_id, name, password) VALUES ('{user_id}', '{name}', '{password}')")
 
     def update_user(self, user_id, name, password) -> SqlResponse:
         """Change user data in database"""
@@ -166,9 +166,9 @@ class DatabaseManager:
         """Get chat data"""
         return self.sql_query(f"SELECT * FROM chats WHERE chat_id='{chat_id}'", rows_num=1)
 
-    def create_chat(self, chat_id, chat_name, chat_description, chat_users) -> SqlResponse:
+    def create_chat(self, chat_id, chat_name, chat_description) -> SqlResponse:
         """Create new chat"""
-        return self.sql_query(f"INSERT INTO chats (chat_id, name, description, users) VALUES ('{chat_id}', '{chat_name}', '{chat_description}', '{chat_users}')")
+        return self.sql_query(f"INSERT INTO chats (chat_id, name, description) VALUES ('{chat_id}', '{chat_name}', '{chat_description}')")
 
     def update_chat(self, chat_id, chat_name, chat_description) -> SqlResponse:
         """Change chat info"""
@@ -178,29 +178,31 @@ class DatabaseManager:
         """Delete chat from database"""
         return self.sql_query(f"DELETE FROM chats WHERE chat_id='{chat_id}'")
 
-    def add_chat_to_user(self, user_id, chat_id) -> SqlResponse:
-        """Add chat to user's list of chats"""
-        return self.sql_query(f"UPDATE users SET chat_list = CONCAT(chat_list, '{chat_id};') WHERE user_id='{user_id}'")
+    def get_user_chats(self, user_id):
+        """Get list of user's chats"""
+        return self.sql_query(f"SELECT chat_id FROM user_chat WHERE user_id='{user_id}'")
+
+    def get_chat_users(self, chat_id):
+        """Get list of users in chat"""
+        return self.sql_query(f"SELECT user_id FROM user_chat WHERE chat_id='{chat_id}'")
 
     def add_user_to_chat(self, user_id, chat_id) -> SqlResponse:
-        """Add user to chat's list of users"""
-        return self.sql_query(f"UPDATE chats SET users = CONCAT(users, '{user_id};') WHERE chat_id = '{chat_id}'")
-
-    def delete_chat_from_user(self, user_id, chat_id) -> SqlResponse:
-        """Delete chat from user's list of chats"""
-        return self.sql_query(f"UPDATE users SET chat_list = REPLACE(chat_list, '{chat_id};', '') WHERE user_id='{user_id}'")
+        return self.sql_query(f"INSERT INTO user_chat (user_id, chat_id, role_id) VALUES ('{user_id}', '{chat_id}', 0)")
 
     def delete_user_from_chat(self, user_id, chat_id) -> SqlResponse:
-        """Delete user from chat's list of users"""
-        return self.sql_query(f"UPDATE chats SET users = REPLACE(users, '{user_id};', '') WHERE chat_id = '{chat_id}'")
+        return self.sql_query(f"DELETE FROM user_chat WHERE user_id='{user_id}' AND chat_id='{chat_id}'")
 
     def delete_chat_from_all_users(self, chat_id) -> SqlResponse:
-        """Delete chat from all users' lists of chats"""
-        return self.sql_query(f"UPDATE users SET chat_list = REPLACE(chat_list, '{chat_id};', '') WHERE chat_list LIKE '%{chat_id}%'")
+        """Delete chat from all users"""
+        return self.sql_query(f"DELETE FROM user_chat WHERE chat_id='{chat_id}'")
 
     def delete_user_from_all_chats(self, user_id) -> SqlResponse:
-        """Delete user from all chat's lists of users"""
-        return self.sql_query(f"UPDATE chats SET users = REPLACE(users, '{user_id};', '') WHERE users LIKE '%{user_id}%'")
+        """Delete user from all chats"""
+        return self.sql_query(f"DELETE FROM user_chat WHERE user_id='{user_id}'")
+
+    def check_user_in_chat(self, user_id, chat_id) -> SqlResponse:
+        """Check if user is in given chat"""
+        return self.sql_query(f"SELECT * FROM user_chat WHERE user_id='{user_id}' AND chat_id='{chat_id}'")
 
 
 def make_response(response):
@@ -279,7 +281,7 @@ def api_login():
 
 
 # Add or delete user from chat
-@app.route("/api/user-chat", methods=['POST', 'DELETE'])
+@app.route("/api/user-chat", methods=['GET', 'POST', 'DELETE'])
 def add_user_to_chat():
     print(request.data)
     # Handling JSON errors
@@ -294,44 +296,56 @@ def add_user_to_chat():
         return make_response(ResponseCode.UserUnauthorized)
     user_id = request_data["user_id"]
 
+    # Getting list of chats or users
+    if request.method == "GET":
+        if request_data.has_field("chat_id"):
+            # Getting list of all users in given chat
+            chat_id = request_data["chat_id"]
+            db_response = db_manager.get_chat_users(chat_id)
+            if not db_response.success:
+                return make_response(ResponseCode.SqlError)
+            return jsonify(db_response.data)
+        else:
+            # Getting list of all chats for current user
+            db_response = db_manager.get_user_chats(user_id)
+            if not db_response.success:
+                return make_response(ResponseCode.SqlError)
+            return jsonify(db_response.data)
+
     if not request_data.has_field("chat_id"):
         return make_response(ResponseCode.BadRequest)
     chat_id = request_data["chat_id"]
 
-    # Check if chat and user exist
-    db_response = db_manager.get_user_data(user_id)
+    # Check whether user is in chat
+    db_response = db_manager.check_user_in_chat(user_id, chat_id)
     if not db_response.success:
         return make_response(ResponseCode.SqlError)
-    if not db_response.data:
-        return make_response(ResponseCode.UserNotFound)
-    user_chats = db_response.data["chat_list"]
-    db_response = db_manager.get_chat_data(chat_id)
-    if not db_response.success:
-        return make_response(ResponseCode.SqlError)
-    if not db_response.data:
-        return make_response(ResponseCode.ChatNotFound)
-    users_in_chat = db_response.data["users"]
-
+    user_in_chat = bool(db_response.data)
 
     if request.method == "POST":
         # Check if user already in chat
-        if chat_id in user_chats:
+        if user_in_chat:
             return make_response(ResponseCode.ForbiddenError)
 
+        # Check if chat exists
+        db_response = db_manager.get_chat_data(chat_id)
+        if not db_response.success:
+            return make_response(ResponseCode.SqlError)
+        if not db_response.data:
+            return make_response(ResponseCode.ChatNotFound)
+
         db_response = db_manager.add_user_to_chat(user_id, chat_id)
-        db_response2 = db_manager.add_chat_to_user(user_id, chat_id)
-        if db_response.success and db_response2.success:
+        if db_response.success:
             return make_response(ResponseCode.OK)
         return make_response(ResponseCode.SqlError)
 
     if request.method == "DELETE":
         # Check if user not in chat
-        if chat_id not in user_chats:
+        if not user_in_chat:
             return make_response(ResponseCode.ForbiddenError)
 
         db_response = db_manager.delete_user_from_chat(user_id, chat_id)
-        db_response2 = db_manager.delete_chat_from_user(user_id, chat_id)
-        if db_response.success and db_response2.success:
+        if db_response.success:
             return make_response(ResponseCode.OK)
         return make_response(ResponseCode.SqlError)
 
@@ -412,7 +426,6 @@ def api_users():
         db_response = db_manager.delete_user_from_all_chats(user_id)
         if not db_response.success:
             return make_response(ResponseCode.SqlError)
-        # Delete user from their chats
         return make_response(ResponseCode.OK)
 
 
@@ -513,11 +526,10 @@ def api_chats():
         chat_name = request_data["name"]
         chat_description = request_data["description"]
         # TODO: add ability to create chats with other users
-        chat_users = f"{user_id};"
         chat_id = generate_random_string(7)
-        db_response = db_manager.create_chat(chat_id, chat_name, chat_description, chat_users)
+        db_response = db_manager.create_chat(chat_id, chat_name, chat_description)
         # Adding creator of chat to the chat
-        db_response2 = db_manager.add_chat_to_user(user_id, chat_id)
+        db_response2 = db_manager.add_user_to_chat(user_id, chat_id)
         if db_response.success and db_response2.success:
             return make_response(ResponseCode.OK)
         return make_response(ResponseCode.SqlError)
