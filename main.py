@@ -142,9 +142,21 @@ class DatabaseManager:
     def get_messages_from_chat(self, user_id, chat_id, max_num) -> SqlResponse:
         """Get last messages from given chat"""
         self.update_user_last_seen(user_id)
-        return self.sql_query(f"SELECT * FROM ("
-                              f" SELECT * FROM messages WHERE chat_id='{chat_id}' ORDER BY msg_id DESC LIMIT {max_num}"
+        return self.sql_query(f"SELECT * FROM ( "
+                              f"SELECT * FROM messages WHERE chat_id='{chat_id}' ORDER BY msg_id DESC LIMIT {max_num}"
                               f") ORDER BY msg_id ASC")
+
+    def check_new_messages_in_chat(self, user_id, chat_id):
+        """Return new messages for user in this chat"""
+        return self.sql_query(f"SELECT * FROM messages WHERE chat_id='{chat_id}' "
+                              f"AND msg_id not in (SELECT msg_id FROM read_messages WHERE user_id='{user_id}')")
+
+    def mark_messages_as_read(self, user_id, chat_id):
+        """Mark all messages for user in chat as read"""
+        # TODO: fix query
+        return self.sql_query(f"INSERT INTO read_messages (msg_id, user_id) "
+                              f"SELECT messages.msg_id, messages.from_id FROM messages WHERE messages.chat_id='{chat_id}' "
+                              f"AND messages.msg_id NOT IN (SELECT read_messages.msg_id FROM read_messages WHERE read_messages.user_id='{user_id}')")
 
     def get_message_data(self, msg_id) -> SqlResponse:
         """Check if message exists in database"""
@@ -446,16 +458,31 @@ def api_messages():
     user_id = request_data["user_id"]
 
     if request.method == "GET":
-        if not request_data.has_fields(["chat_id", "max_messages"]):
+        if not request_data.has_field("chat_id"):
             return make_response(ResponseCode.BadRequest)
         chat_id = request_data["chat_id"]
-        max_messages = request_data["max_messages"]
-        db_response = db_manager.get_messages_from_chat(user_id, chat_id, max_messages)
-        if not db_response.success:
-            return make_response(ResponseCode.SqlError)
-        if not db_response.data:
-            return make_response(ResponseCode.MessageNotFound)
-        return jsonify(db_response.data)
+
+        if request_data.has_field("max_messages"):
+            # Read all unread messages
+            db_response = db_manager.mark_messages_as_read(user_id, chat_id)
+            print(db_response.data)
+            if not db_response.success:
+                return make_response(ResponseCode.SqlError)
+            # Return given amount of messages
+            max_messages = request_data["max_messages"]
+            db_response = db_manager.get_messages_from_chat(user_id, chat_id, max_messages)
+            if not db_response.success:
+                return make_response(ResponseCode.SqlError)
+            if not db_response.data:
+                return make_response(ResponseCode.MessageNotFound)
+            return jsonify(db_response.data)
+        else:
+            # Return whether there are new messages for this user
+            db_response = db_manager.check_new_messages_in_chat(user_id, chat_id)
+            print(db_response.data)
+            if not db_response.success:
+                return make_response(ResponseCode.SqlError)
+            return jsonify({"code": 200, "new_messages": bool(db_response.data)})
 
     if request.method == "POST":
         if not request_data.has_fields(["chat_id", "content"]):

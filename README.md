@@ -9,7 +9,8 @@ SusChat messenger is a lightweight REST API based messenger server app written i
 - [x] Add API for managing users
 - [x] Add API for managing messages
 - [x] Make authentication using session data in database
-- [ ] Add ability to create new chats
+- [x] Add ability to create new chats
+- [ ] Add table for read messages
 - [ ] Add new fields to users:
 - - [ ] Bio
 - - [ ] Profile picture
